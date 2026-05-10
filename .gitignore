@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# 数据目录（不要上传用户数据）
+data/
+uploads/
+*.json
+chroma_db/
+
+# 环境文件（包含敏感信息）
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+*.log.*
+
+# Docker
+.dockerignore
+
+# 临时文件
+*.tmp
+*.bak
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
