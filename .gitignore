@@ -12,6 +12,7 @@ ENV/
 # 数据目录（不要上传用户数据）
 data/
 uploads/
+user_data/
 *.json
 chroma_db/
 
