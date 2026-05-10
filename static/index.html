@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人知识库智能助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f5f5f5; height: 100vh; }
+        
+        .app-container { display: flex; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 260px; background: #1a1a2e; color: white; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #333; }
+        .sidebar-header h2 { font-size: 16px; margin-bottom: 5px; }
+        .sidebar-header .user-info { font-size: 12px; color: #999; }
+        .sidebar-nav { flex: 1; padding: 10px; }
+        .nav-btn { width: 100%; padding: 12px 15px; margin: 5px 0; background: transparent; border: none; color: #ccc; text-align: left; cursor: pointer; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+        .nav-btn:hover { background: #2d2d44; }
+        .nav-btn.active { background: #4a4a6a; color: white; }
+        .sidebar-footer { padding: 15px; border-top: 1px solid #333; }
+        .logout-btn { width: 100%; padding: 10px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        
+        /* Main content */
+        .main-content { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
+        .header { padding: 15px 25px; border-bottom: 1px solid #eee; background: #fafafa; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 18px; color: #333; }
+        .header .kb-status { font-size: 12px; color: #666; }
+        
+        /* Chat area */
+        .chat-container { flex: 1; overflow-y: auto; padding: 25px; }
+        .message { margin-bottom: 20px; display: flex; }
+        .message.user { justify-content: flex-end; }
+        .message-content { max-width: 70%; padding: 12px 18px; border-radius: 18px; line-height: 1.6; font-size: 14px; }
+        .message.user .message-content { background: #4a90d9; color: white; }
+        .message.assistant .message-content { background: #f0f0f0; color: #333; }
+        .message-source { font-size: 11px; color: #999; margin-top: 5px; }
+        
+        .welcome-message { text-align: center; padding: 80px 20px; color: #666; }
+        .welcome-message h2 { margin-bottom: 10px; color: #333; }
+        .welcome-message p { line-height: 1.8; }
+        
+        /* Input area */
+        .input-container { padding: 20px 25px; border-top: 1px solid #eee; background: #fafafa; }
+        .input-wrapper { display: flex; gap: 10px; align-items: center; background: white; border: 1px solid #ddd; border-radius: 24px; padding: 8px 15px; }
+        .input-wrapper input { flex: 1; border: none; outline: none; font-size: 14px; padding: 8px; }
+        .send-btn { background: #4a90d9; color: white; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .send-btn:hover { background: #3a7bc8; }
+        .send-btn:disabled { background: #ccc; }
+        .clear-chat-btn { font-size: 12px; color: #666; cursor: pointer; border: none; background: none; margin-top: 8px; }
+        .clear-chat-btn:hover { color: #e74c3c; }
+        
+        /* Knowledge base page */
+        .kb-page { flex: 1; overflow-y: auto; padding: 25px; display: none; }
+        .kb-page.active { display: block; }
+        .kb-section { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .kb-section h3 { margin-bottom: 15px; color: #333; }
+        textarea { width: 100%; height: 120px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; resize: vertical; font-size: 14px; font-family: inherit; }
+        .form-row { display: flex; gap: 10px; margin-top: 10px; }
+        .form-row input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        .btn-primary { padding: 10px 20px; background: #4a90d9; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .btn-primary:hover { background: #3a7bc8; }
+        .btn-danger { padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9f9f9; border-radius: 8px; margin-bottom: 10px; }
+        .file-upload-area { border: 2px dashed #ddd; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; }
+        .file-upload-area:hover { border-color: #4a90d9; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; background: #27ae60; color: white; border-radius: 8px; z-index: 1000; display: none; }
+        .toast.error { background: #e74c3c; }
+        
+        /* Login page */
+        .login-page { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
+        .login-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        .login-card h1 { text-align: center; margin-bottom: 8px; color: #333; }
+        .login-card .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
+        .login-form input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
+        .login-form button { width: 100%; padding: 12px; background: #4a90d9; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        .login-form button:hover { background: #3a7bc8; }
+        .login-tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #eee; }
+        .login-tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; color: #666; }
+        .login-tab.active { color: #4a90d9; border-bottom-color: #4a90d9; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .typing-indicator { display: flex; gap: 5px; padding: 12px 18px; }
+        .typing-indicator span { width: 8px; height: 8px; background: #999; border-radius: 50%; animation: bounce 1.4s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+    
+    <!-- Login Page -->
+    <div class="login-page" id="loginPage">
+        <div class="login-card">
+            <h1>个人知识库智能助手</h1>
+            <p class="subtitle">你的专属 AI，拥有永久记忆能力</p>
+            
+            <div class="login-tabs">
+                <div class="login-tab active" onclick="switchTab('login')">登录</div>
+                <div class="login-tab" onclick="switchTab('register')">注册</div>
+            </div>
+            
+            <div class="tab-content active" id="loginTab">
+                <div class="login-form">
+                    <input type="text" id="loginUser" placeholder="用户名" onkeypress="if(event.key==='Enter')handleLogin()">
+                    <input type="password" id="loginPass" placeholder="密码" onkeypress="if(event.key==='Enter')handleLogin()">
+                    <button id="loginBtn" onclick="handleLogin()">登录</button>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="registerTab">
+                <div class="login-form">
+                    <input type="text" id="regUser" placeholder="用户名" onkeypress="if(event.key==='Enter')handleRegister()">
+                    <input type="password" id="regPass" placeholder="密码" onkeypress="if(event.key==='Enter')handleRegister()">
+                    <input type="password" id="regConfirm" placeholder="确认密码" onkeypress="if(event.key==='Enter')handleRegister()">
+                    <button id="regBtn" onclick="handleRegister()">注册</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main App -->
+    <div class="app-container" id="appPage" style="display:none;">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>个人知识库助手</h2>
+                <div class="user-info" id="userDisplay"></div>
+            </div>
+            <div class="sidebar-nav">
+                <button class="nav-btn active" onclick="switchPage('chat', this)">
+                    <span>💬</span> 智能对话
+                </button>
+                <button class="nav-btn" onclick="switchPage('kb', this)">
+                    <span>📚</span> 知识库管理
+                </button>
+            </div>
+            <div class="sidebar-footer">
+                <button class="logout-btn" onclick="handleLogout()">退出登录</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="header">
+                <h1 id="pageTitle">智能对话</h1>
+                <div class="kb-status" id="kbStatus"></div>
+            </div>
+            
+            <!-- Chat Page -->
+            <div class="chat-container" id="chatContainer">
+                <div class="welcome-message">
+                    <h2>你好！我是你的个人知识库助手</h2>
+                    <p>我可以从你的个人知识库中查找信息，<br>也可以用自己的知识回答你的问题。<br><br>在"知识库管理"中添加你的专属知识吧！</p>
+                </div>
+            </div>
+            
+            <div class="input-container" id="chatInput">
+                <div class="input-wrapper">
+                    <input type="text" id="messageInput" placeholder="输入你的问题..." onkeypress="handleKeyPress(event)">
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+                <button class="clear-chat-btn" onclick="clearChat()">清空对话记录</button>
+            </div>
+            
+            <!-- Knowledge Base Page -->
+            <div class="kb-page" id="kbPage">
+                <div class="kb-section">
+                    <h3>添加文本知识</h3>
+                    <p style="color:#666; font-size:12px; margin-bottom:10px;">输入你想让我记住的信息，例如个人信息、业务规则等</p>
+                    <textarea id="textContent" placeholder="例如：我们公司的地址是北京市朝阳区xxx路xxx号..."></textarea>
+                    <div class="form-row">
+                        <input type="text" id="textSource" placeholder="来源标签（方便以后查找）" value="文本输入">
+                        <button class="btn-primary" onclick="addText()">添加到知识库</button>
+                    </div>
+                </div>
+                
+                <div class="kb-section">
+                    <h3>上传文档</h3>
+                    <p style="color:#666; font-size:12px; margin-bottom:10px;">支持 PDF、Word、TXT、Excel 文档</p>
+                    <div class="file-upload-area" onclick="document.getElementById('fileInput').click()">
+                        <p>点击选择文件上传</p>
+                        <input type="file" id="fileInput" style="display:none" accept=".pdf,.docx,.doc,.txt,.xlsx" onchange="uploadDocument()">
+                    </div>
+                    <div class="form-row" style="margin-top:15px;">
+                        <input type="text" id="docSource" placeholder="来源标签" value="上传文档">
+                        <button class="btn-primary" onclick="uploadDocumentBtn()">上传并解析</button>
+                    </div>
+                </div>
+                
+                <div class="kb-section">
+                    <h3>我的知识库</h3>
+                    <div id="docList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let sessionId = null;
+        let uploadedFile = null;
+        
+        function apiCall(url, options = {}) {
+            const headers = options.headers || {};
+            if (sessionId) {
+                headers['x-session-id'] = encodeURIComponent(sessionId);
+            }
+            return fetch(url, {...options, headers}).then(r => r.json());
+        }
+        
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        }
+        
+        function switchTab(tab) {
+            document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelectorAll('.login-tab')[0].classList.add('active');
+                document.getElementById('loginTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.login-tab')[1].classList.add('active');
+                document.getElementById('registerTab').classList.add('active');
+            }
+        }
+        
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            if (loading) {
+                btn.disabled = true;
+                btn.textContent = '处理中...';
+                btn.style.opacity = '0.6';
+            } else {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
+        
+        async function handleRegister() {
+            const username = document.getElementById('regUser').value.trim();
+            const password = document.getElementById('regPass').value;
+            const confirm = document.getElementById('regConfirm').value;
+            
+            if (!username || !password) return showToast('请输入用户名和密码', true);
+            if (password !== confirm) return showToast('两次密码不一致', true);
+            
+            setLoading('regBtn', true);
+            
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                const data = await res.json();
+                showToast(data.message, !data.success);
+            } catch(e) {
+                showToast('请求失败，请重试', true);
+            } finally {
+                setLoading('regBtn', false);
+            }
+        }
+        
+        async function handleLogin() {
+            const username = document.getElementById('loginUser').value.trim();
+            const password = document.getElementById('loginPass').value;
+            
+            if (!username || !password) return showToast('请输入用户名和密码', true);
+            
+            setLoading('loginBtn', true);
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    sessionId = data.session_id;
+                    document.getElementById('loginPage').style.display = 'none';
+                    document.getElementById('appPage').style.display = 'flex';
+                    document.getElementById('userDisplay').textContent = '用户: ' + username;
+                    loadKbStatus();
+                } else {
+                    showToast(data.message, true);
+                }
+            } catch(e) {
+                showToast('请求失败，请重试', true);
+            } finally {
+                setLoading('loginBtn', false);
+            }
+        }
+        
+        async function handleLogout() {
+            if (sessionId) await apiCall('/api/logout', {method: 'POST'});
+            sessionId = null;
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('appPage').style.display = 'none';
+            document.getElementById('chatContainer').innerHTML = '<div class="welcome-message"><h2>你好！我是你的个人知识库助手</h2><p>我可以从你的个人知识库中查找信息，<br>也可以用自己的知识回答你的问题。</p></div>';
+        }
+        
+        function switchPage(page, btn) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const chatContainer = document.getElementById('chatContainer');
+            const chatInput = document.getElementById('chatInput');
+            const kbPage = document.getElementById('kbPage');
+            const pageTitle = document.getElementById('pageTitle');
+            
+            if (page === 'chat') {
+                chatContainer.style.display = 'block';
+                chatInput.style.display = 'block';
+                kbPage.classList.remove('active');
+                pageTitle.textContent = '智能对话';
+            } else {
+                chatContainer.style.display = 'none';
+                chatInput.style.display = 'none';
+                kbPage.classList.add('active');
+                pageTitle.textContent = '知识库管理';
+                loadKbStatus();
+            }
+        }
+        
+        async function loadKbStatus() {
+            const data = await apiCall('/api/kb_status');
+            document.getElementById('kbStatus').textContent = `知识库: ${data.doc_count} 个知识源`;
+        }
+        
+        function addMessage(role, content, source) {
+            const container = document.getElementById('chatContainer');
+            const welcome = container.querySelector('.welcome-message');
+            if (welcome) welcome.remove();
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message ' + role;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            if (source) {
+                const sourceDiv = document.createElement('div');
+                sourceDiv.className = 'message-source';
+                sourceDiv.textContent = source;
+                contentDiv.appendChild(sourceDiv);
+            }
+            
+            msgDiv.appendChild(contentDiv);
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function showTyping() {
+            const container = document.getElementById('chatContainer');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message assistant';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function removeTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            input.value = '';
+            addMessage('user', message);
+            showTyping();
+            
+            let answerContent = '';
+            let fromKb = false;
+            const container = document.getElementById('chatContainer');
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-session-id': sessionId ? String(sessionId) : ''
+                    },
+                    body: JSON.stringify({message})
+                });
+                
+                if (!response.ok) {
+                    throw new Error('请求失败');
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                removeTyping();
+                
+                const assistantDiv = document.createElement('div');
+                assistantDiv.className = 'message assistant';
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                assistantDiv.appendChild(contentDiv);
+                container.appendChild(assistantDiv);
+                
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, {stream: true});
+                    buffer += chunk;
+                    
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                if (data.content) {
+                                    answerContent += data.content;
+                                    contentDiv.textContent = answerContent;
+                                    container.scrollTop = container.scrollHeight;
+                                } else if (typeof data.from_knowledge_base === 'boolean') {
+                                    fromKb = data.from_knowledge_base;
+                                    const sourceDiv = document.createElement('div');
+                                    sourceDiv.className = 'message-source';
+                                    sourceDiv.textContent = fromKb ? '回答来源：已结合你的个人知识库' : '回答来源：使用 AI 通用知识';
+                                    contentDiv.appendChild(sourceDiv);
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                }
+                
+            } catch(e) {
+                removeTyping();
+                addMessage('assistant', '请求失败：' + e.message, null);
+                console.error('Chat error:', e);
+            }
+        }
+        
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+        
+        async function clearChat() {
+            await apiCall('/api/clear_chat');
+            document.getElementById('chatContainer').innerHTML = '<div class="welcome-message"><h2>对话已清空</h2><p>开始新的对话吧！</p></div>';
+        }
+        
+        async function addText() {
+            const content = document.getElementById('textContent').value;
+            const sourceName = document.getElementById('textSource').value;
+            
+            if (!content) return showToast('请输入内容', true);
+            
+            try {
+                const data = await apiCall('/api/add_text', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content, source_name: sourceName})
+                });
+                
+                if (data.success) {
+                    showToast('✅ ' + data.message);
+                    document.getElementById('textContent').value = '';
+                    loadKbStatus();
+                    loadDocList();
+                } else {
+                    showToast('❌ ' + data.message, true);
+                }
+            } catch(e) {
+                showToast('请求失败，请重试', true);
+            }
+        }
+        
+        function uploadDocument() {
+            const file = document.getElementById('fileInput').files[0];
+            if (file) {
+                uploadedFile = file;
+                showToast('✅ 已选择: ' + file.name);
+            }
+        }
+        
+        async function uploadDocumentBtn() {
+            if (!uploadedFile) return showToast('请先选择文件', true);
+            
+            const sourceName = document.getElementById('docSource').value || uploadedFile.name;
+            const formData = new FormData();
+            formData.append('file', uploadedFile);
+            formData.append('source_name', sourceName);
+            
+            const headers = {};
+            if (sessionId) {
+                headers['x-session-id'] = sessionId;
+            }
+            
+            try {
+                const res = await fetch('/api/upload_document', {
+                    method: 'POST',
+                    headers,
+                    body: formData
+                });
+                
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.message || '上传失败');
+                }
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('✅ ' + data.message);
+                    uploadedFile = null;
+                    document.getElementById('fileInput').value = '';
+                    document.getElementById('docSource').value = '';
+                    loadKbStatus();
+                    loadDocList();
+                } else {
+                    showToast('❌ ' + data.message, true);
+                }
+            } catch(e) {
+                showToast('上传失败：' + e.message, true);
+                console.error('Upload error:', e);
+            }
+        }
+        
+        async function loadDocList() {
+            const data = await apiCall('/api/kb_status');
+            const list = document.getElementById('docList');
+            
+            if (data.documents.length === 0) {
+                list.innerHTML = '<p style="color:#999; text-align:center;">知识库为空，请添加内容</p>';
+                return;
+            }
+            
+            list.innerHTML = data.documents.map(doc => 
+                `<div class="doc-item">
+                    <div>
+                        <strong>📄 ${doc.source}</strong>
+                        <div style="font-size:12px; color:#666;">${doc.count} 条知识片段</div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteDoc('${doc.source}')">删除</button>
+                </div>`
+            ).join('');
+        }
+        
+        async function deleteDoc(sourceName) {
+            const data = await apiCall('/api/delete_document?source_name=' + encodeURIComponent(sourceName), {
+                method: 'POST'
+            });
+            showToast(data.message, !data.success);
+            if (data.success) {
+                loadKbStatus();
+                loadDocList();
+            }
+        }
+        
+        // Override kbPage display to load doc list when shown
+        const origSwitchPage = switchPage;
+        window.switchPage = function(page, btn) {
+            origSwitchPage(page, btn);
+            if (page === 'kb') loadDocList();
+        };
+    </script>
+</body>
+</html>

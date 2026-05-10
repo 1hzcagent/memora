@@ -1,0 +1,23 @@
+# 数据目录
+data/
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 环境文件（不要提交敏感信息）
+.env
