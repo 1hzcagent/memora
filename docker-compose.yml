@@ -10,6 +10,7 @@ services:
       - OPENAI_API_KEY=${DASHSCOPE_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
     volumes:
+      - ./user_data:/app/user_data
       - ./data:/app/data
       - ./uploads:/app/uploads
     restart: unless-stopped
