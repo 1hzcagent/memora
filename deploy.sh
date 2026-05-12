@@ -1,95 +1,112 @@
 #!/bin/bash
 
+set -e
+
 echo "=========================================="
-echo "  个人知识库Agent - Docker自动部署脚本"
+echo "🚀 开始更新部署..."
 echo "=========================================="
 echo ""
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# 获取脚本所在目录作为项目根目录
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
 
-# 1. 检查Docker是否安装
-echo -e "${YELLOW}[1/6] 检查Docker安装...${NC}"
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}错误：Docker未安装，请先安装Docker${NC}"
+echo "📁 项目目录：$SCRIPT_DIR"
+echo ""
+
+# 1. 检查 Git 仓库
+echo "🔍 检查 Git 仓库状态..."
+if [ ! -d ".git" ]; then
+    echo "❌ 错误：当前目录不是 Git 仓库！"
+    echo "请运行以下命令初始化："
+    echo "    git init"
+    echo "    git remote add origin https://github.com/1hzcagent/memora"
     exit 1
 fi
-echo -e "${GREEN}✓ Docker已安装: $(docker --version)${NC}"
-echo ""
 
-# 2. 检查Docker Compose是否安装
-echo -e "${YELLOW}[2/6] 检查Docker Compose安装...${NC}"
-if ! docker compose version &> /dev/null; then
-    echo -e "${RED}错误：Docker Compose未安装${NC}"
-    echo "请运行: sudo apt-get install docker-compose-plugin"
-    exit 1
-fi
-echo -e "${GREEN}✓ Docker Compose已安装${NC}"
-echo ""
-
-# 3. 创建必要的目录
-echo -e "${YELLOW}[3/6] 创建数据目录...${NC}"
-mkdir -p data
-mkdir -p uploads
-echo -e "${GREEN}✓ 目录创建完成${NC}"
-echo ""
-
-# 4. 检查.env文件
-echo -e "${YELLOW}[4/6] 检查环境配置...${NC}"
-if [ ! -f .env ]; then
-    echo -e "${YELLOW}警告：.env文件不存在，从.env.example复制${NC}"
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        echo -e "${RED}请编辑.env文件，确保DASHSCOPE_API_KEY正确！${NC}"
-        echo "编辑命令: nano .env"
-        echo "按 Ctrl+X 保存退出"
-        read -p "编辑完成后按回车继续..."
-    else
-        echo -e "${RED}错误：.env.example文件也不存在${NC}"
-        exit 1
+# 检查远程仓库
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if [[ "$REMOTE_URL" != *"1hzcagent/memora"* ]]; then
+    echo "⚠️  警告：远程仓库地址不匹配"
+    echo "当前远程地址：$REMOTE_URL"
+    echo "预期地址：https://github.com/1hzcagent/memora"
+    echo ""
+    read -p "是否修改远程仓库地址？(Y/n): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]] || [ -z "$REPLY" ]; then
+        git remote set-url origin https://github.com/1hzcagent/memora
+        echo "✅ 远程仓库地址已更新"
     fi
 fi
-echo -e "${GREEN}✓ 环境配置检查完成${NC}"
+
+# 2. 拉取最新代码
+echo "📦 从 GitHub 拉取最新代码 (https://github.com/1hzcagent/memora)..."
+git fetch origin
+
+# 获取当前分支
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "📍 当前分支：$CURRENT_BRANCH"
+
+# 拉取代码（使用 rebase 保持提交历史干净）
+git pull --rebase origin "$CURRENT_BRANCH" || {
+    echo "⚠️  Git pull 失败，尝试重置到远程分支..."
+    git reset --hard "origin/$CURRENT_BRANCH"
+}
+
+echo "✅ 代码已更新到最新版本"
+git log -1 --oneline
 echo ""
 
-# 5. 构建并启动Docker容器
-echo -e "${YELLOW}[5/6] 构建Docker镜像并启动服务...${NC}"
-docker compose down 2>/dev/null
-docker compose up -d --build
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ 容器启动成功${NC}"
+# 3. 停止旧容器
+echo "⏹️  停止旧容器..."
+if docker-compose ps | grep -q "Up"; then
+    docker-compose down
+    echo "✅ 旧容器已停止"
 else
-    echo -e "${RED}错误：容器启动失败${NC}"
-    echo "请查看错误信息: docker compose logs"
-    exit 1
+    echo "ℹ️  没有运行中的容器，跳过停止步骤"
 fi
 echo ""
 
-# 6. 检查服务状态
-echo -e "${YELLOW}[6/6] 检查服务状态...${NC}"
-sleep 3
-docker compose ps
+# 4. 重新构建镜像
+echo "🔨 重新构建 Docker 镜像..."
+docker-compose build --no-cache
+echo "✅ 镜像构建完成"
 echo ""
 
-# 获取服务器IP
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "47.106.174.195")
+# 5. 启动新容器
+echo "▶️  启动新容器..."
+docker-compose up -d
+echo "✅ 容器已启动"
+echo ""
 
+# 6. 等待服务启动
+echo "⏳ 等待服务启动..."
+sleep 5
+
+# 7. 检查容器状态
+echo "🔍 检查容器状态..."
+docker-compose ps
+echo ""
+
+# 8. 清理悬空镜像
+echo "🧹 清理悬空镜像..."
+docker image prune -f
+echo "✅ 清理完成"
+echo ""
+
+# 9. 显示部署信息
 echo "=========================================="
-echo -e "${GREEN}部署完成！${NC}"
+echo "✅ 部署完成！"
 echo "=========================================="
 echo ""
-echo "访问地址: http://${SERVER_IP}:8000"
+echo "📋 查看实时日志：docker-compose logs -f"
+echo "🌐 访问应用：http://localhost:8000"
+echo "📚 API 文档：http://localhost:8000/docs"
 echo ""
-echo "常用管理命令:"
-echo "  查看日志: docker compose logs -f"
-echo "  重启服务: docker compose restart"
-echo "  停止服务: docker compose down"
-echo "  更新部署: docker compose up -d --build"
+
+# 10. 询问是否查看日志
+read -p "是否查看实时日志？(Y/n): " -n 1 -r
 echo ""
-echo "防火墙提醒:"
-echo "  请在服务器控制台开放端口 8000 (TCP)"
-echo "=========================================="
+if [[ $REPLY =~ ^[Yy]$ ]] || [ -z "$REPLY" ]; then
+    docker-compose logs -f
+fi
