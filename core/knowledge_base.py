@@ -1,5 +1,6 @@
 import os
 import json
+import requests
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,7 +8,7 @@ load_dotenv()
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
-from config import DASHSCOPE_API_KEY, EMBEDDING_MODEL, SIMILARITY_THRESHOLD
+from config import DASHSCOPE_API_KEY, EMBEDDING_MODEL, SIMILARITY_THRESHOLD, RERANK_MODEL, RERANK_THRESHOLD
 
 class KnowledgeBaseManager:
     def __init__(self, username, kb_path):
@@ -93,6 +94,47 @@ class KnowledgeBaseManager:
                 self._save_metadata()
             raise
     
+    def _rerank(self, query, docs):
+        """使用 DashScope Rerank API 对检索结果重排序"""
+        if not docs:
+            return []
+        
+        try:
+            url = "https://dashscope.aliyuncs.com/compatible-mode/v1/rerank"
+            headers = {
+                "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            documents = [doc.page_content for doc in docs]
+            
+            payload = {
+                "model": RERANK_MODEL,
+                "query": query,
+                "documents": documents,
+                "top_n": len(documents)
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            
+            result = response.json()
+            reranked = result.get("results", [])
+            
+            reranked_docs = []
+            for item in reranked:
+                idx = item.get("index")
+                score = item.get("relevance_score")
+                if score >= RERANK_THRESHOLD:
+                    reranked_docs.append((docs[idx], score))
+            
+            print(f"Rerank 后保留 {len(reranked_docs)} 条相关结果")
+            return reranked_docs
+            
+        except Exception as e:
+            print(f"Rerank 失败，降级使用原始结果: {e}")
+            return [(doc, 1.0) for doc in docs]
+    
     def query(self, question, k=3):
         print(f"\n=== 查询知识库 ===")
         print(f"问题: {question}")
@@ -110,26 +152,19 @@ class KnowledgeBaseManager:
             k=k,
         )
         
-        print(f"检索到 {len(results)} 条结果")
+        print(f"向量检索到 {len(results)} 条结果")
         for i, (doc, score) in enumerate(results):
-            print(f"  结果{i+1}: 分数={score:.4f}, 内容={doc.page_content[:80]}")
+            print(f"  结果{i+1}: 相似度分数={score:.4f}, 内容={doc.page_content[:80]}")
         
-        max_threshold = 1.0
+        if not results:
+            print(f"===================\n")
+            return []
         
-        relevant_results = [
-            (doc, score) for doc, score in results 
-            if score < max_threshold
-        ]
-        
-        print(f"过滤后相关结果: {len(relevant_results)} 条")
-        
-        if not relevant_results and results:
-            relevant_results = results
-            print("使用全部结果（无过滤）")
+        reranked = self._rerank(question, [doc for doc, _ in results])
         
         print(f"===================\n")
         
-        return relevant_results
+        return reranked
     
     def list_documents(self):
         return self.metadata["documents"]

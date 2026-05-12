@@ -65,7 +65,13 @@ def login_page():
                 
                 st.session_state.kb_manager = KnowledgeBaseManager(username, kb_path)
                 st.session_state.agent = PersonalAgent(username, st.session_state.kb_manager)
+                
                 st.session_state.messages = []
+                for msg in st.session_state.agent.conversation_history:
+                    st.session_state.messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
                 st.rerun()
             else:
                 st.error(msg)

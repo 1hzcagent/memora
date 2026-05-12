@@ -19,4 +19,12 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", 0.3))
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 500))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 100))
-MAX_KB_RESULTS = int(os.getenv("MAX_KB_RESULTS", 5))
+MAX_KB_RESULTS = int(os.getenv("MAX_KB_RESULTS", 8))
+
+# Rerank settings
+RERANK_MODEL = os.getenv("RERANK_MODEL", "gte-rerank")
+RERANK_THRESHOLD = float(os.getenv("RERANK_THRESHOLD", 0.5))
+
+# Web search settings
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+MAX_SEARCH_RESULTS = int(os.getenv("MAX_SEARCH_RESULTS", 3))

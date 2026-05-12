@@ -11,16 +11,22 @@
         .app-container { display: flex; height: 100vh; }
         
         /* Sidebar */
-        .sidebar { width: 260px; background: #1a1a2e; color: white; display: flex; flex-direction: column; }
-        .sidebar-header { padding: 20px; border-bottom: 1px solid #333; }
-        .sidebar-header h2 { font-size: 16px; margin-bottom: 5px; }
+        .sidebar { width: 260px; background: #f7f7f8; color: #333; display: flex; flex-direction: column; transition: width 0.3s ease; border-right: 1px solid #e5e5e5; overflow: hidden; }
+        .sidebar.collapsed { width: 0; border-right: none; }
+        .sidebar-header { padding: 16px; min-width: 260px; }
+        .sidebar-header .sidebar-title { font-size: 15px; font-weight: 600; color: #4f46e5; margin-bottom: 4px; }
         .sidebar-header .user-info { font-size: 12px; color: #999; }
-        .sidebar-nav { flex: 1; padding: 10px; }
-        .nav-btn { width: 100%; padding: 12px 15px; margin: 5px 0; background: transparent; border: none; color: #ccc; text-align: left; cursor: pointer; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
-        .nav-btn:hover { background: #2d2d44; }
-        .nav-btn.active { background: #4a4a6a; color: white; }
-        .sidebar-footer { padding: 15px; border-top: 1px solid #333; }
-        .logout-btn { width: 100%; padding: 10px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .sidebar-nav { flex: 1; padding: 8px; min-width: 260px; overflow-y: auto; }
+        .nav-btn { width: 100%; padding: 10px 14px; margin: 4px 0; background: transparent; border: none; color: #555; text-align: left; cursor: pointer; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 10px; transition: background 0.2s; }
+        .nav-btn:hover { background: #e5e5e5; }
+        .nav-btn.active { background: #e8e8ed; color: #4f46e5; font-weight: 500; }
+        .sidebar-footer { padding: 12px 16px; border-top: 1px solid #e5e5e5; min-width: 260px; }
+        .logout-btn { width: 100%; padding: 8px 12px; background: transparent; color: #ff4d4f; border: 1px solid #ff4d4f; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.2s, color 0.2s; }
+        .logout-btn:hover { background: #ff4d4f; color: white; }
+        
+        /* Sidebar toggle button */
+        .sidebar-toggle-btn { background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 6px; transition: background 0.2s; color: #666; font-size: 18px; }
+        .sidebar-toggle-btn:hover { background: #e5e5e5; }
         
         /* Main content */
         .main-content { flex: 1; display: flex; flex-direction: column; background: #ffffff; }
@@ -29,13 +35,138 @@
         .header .kb-status { font-size: 12px; color: #666; }
         
         /* Chat area */
-        .chat-container { flex: 1; overflow-y: auto; padding: 25px; }
+        .chat-container { flex: 1; overflow-y: auto; padding: 16px; background: #fafafa; }
+        
         .message { margin-bottom: 20px; display: flex; }
         .message.user { justify-content: flex-end; }
-        .message-content { max-width: 70%; padding: 12px 18px; border-radius: 18px; line-height: 1.6; font-size: 14px; }
-        .message.user .message-content { background: #4a90d9; color: white; }
-        .message.assistant .message-content { background: #f0f0f0; color: #333; }
-        .message-source { font-size: 11px; color: #999; margin-top: 5px; }
+        .message.assistant { justify-content: flex-start; }
+        
+        .message.user .message-content {
+            background: #4f46e5;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 18px 18px 4px 18px;
+            max-width: 75%;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .message.assistant .message-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 100%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        
+        .message.assistant .message-card .card-body {
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.7;
+            color: #333;
+        }
+        
+        .message.assistant .message-card .card-body h1,
+        .message.assistant .message-card .card-body h2,
+        .message.assistant .message-card .card-body h3 {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .message.assistant .message-card .card-body h1 { font-size: 17px; margin: 14px 0 8px; }
+        .message.assistant .message-card .card-body h2 { font-size: 15px; margin: 12px 0 6px; }
+        .message.assistant .message-card .card-body h3 { font-size: 14px; margin: 10px 0 4px; }
+        
+        .message.assistant .message-card .card-body ul,
+        .message.assistant .message-card .card-body ol {
+            margin: 6px 0 6px 18px;
+            padding-left: 4px;
+        }
+        .message.assistant .message-card .card-body li { margin: 4px 0; line-height: 1.7; }
+        
+        .message.assistant .message-card .card-body code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+            color: #e11d48;
+        }
+        
+        .message.assistant .message-card .card-body pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+            max-width: 100%;
+        }
+        .message.assistant .message-card .card-body pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        
+        .message.assistant .message-card .card-body strong { font-weight: 600; color: #111827; }
+        
+        .message.assistant .message-card .card-body blockquote {
+            border-left: 3px solid #4f46e5;
+            padding: 8px 12px;
+            margin: 8px 0;
+            color: #6b7280;
+            background: #f9fafb;
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .message.assistant .message-card .card-body p { margin: 6px 0; line-height: 1.8; }
+        
+        .message.assistant .message-card .card-body table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            display: block;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .message.assistant .message-card .card-body th,
+        .message.assistant .message-card .card-body td {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            text-align: left;
+            font-size: 13px;
+        }
+        .message.assistant .message-card .card-body th { background: #f9fafb; font-weight: 600; }
+        
+        .message.assistant .message-card .card-footer {
+            padding: 8px 16px;
+            border-top: 1px solid #f3f4f6;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+        
+        .message.assistant .message-card .list-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 0;
+        }
+        .message.assistant .message-card .list-card .list-card-title {
+            font-weight: 600;
+            color: #4f46e5;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .message.assistant .message-card .list-card p,
+        .message.assistant .message-card .list-card li {
+            font-size: 13px;
+            color: #4b5563;
+            line-height: 1.6;
+        }
+        
+        .message-source { font-size: 11px; color: #9ca3af; margin-top: 8px; padding-top: 6px; border-top: 1px solid #f3f4f6; }
         
         .welcome-message { text-align: center; padding: 80px 20px; color: #666; }
         .welcome-message h2 { margin-bottom: 10px; color: #333; }
@@ -65,6 +196,7 @@
         .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9f9f9; border-radius: 8px; margin-bottom: 10px; }
         .file-upload-area { border: 2px dashed #ddd; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; }
         .file-upload-area:hover { border-color: #4a90d9; }
+        .file-upload-area.has-file { border-color: #27ae60; background: #f0faf0; }
         .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; background: #27ae60; color: white; border-radius: 8px; z-index: 1000; display: none; }
         .toast.error { background: #e74c3c; }
         
@@ -86,6 +218,32 @@
         .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; top: 0; left: 0; height: 100vh; z-index: 200; box-shadow: 4px 0 20px rgba(0,0,0,0.1); }
+            .sidebar.collapsed { width: 0; }
+            .main-content { width: 100%; }
+            .header { padding: 12px 16px; }
+            .header h1 { font-size: 16px; }
+            .chat-container { padding: 12px; }
+            .message.user .message-content { max-width: 85%; }
+            .input-container { padding: 12px 16px; }
+            .kb-page { padding: 16px; }
+            .kb-section { padding: 16px; }
+            .form-row { flex-direction: column; }
+            .form-row input { width: 100%; }
+        }
+        
+        @media (max-width: 480px) {
+            .message.user .message-content { max-width: 90%; font-size: 13px; padding: 10px 14px; }
+            .message.assistant .message-card .card-body { padding: 12px; font-size: 13px; }
+            .message.assistant .message-card .card-body h2 { font-size: 14px; }
+            .message.assistant .message-card .card-body h3 { font-size: 13px; }
+            .sidebar { width: 85vw; }
+            .sidebar.collapsed { width: 0; }
+            .sidebar-header, .sidebar-nav, .sidebar-footer { min-width: 85vw; }
+        }
     </style>
 </head>
 <body>
@@ -123,17 +281,17 @@
     
     <!-- Main App -->
     <div class="app-container" id="appPage" style="display:none;">
-        <div class="sidebar">
+        <div class="sidebar collapsed" id="sidebar">
             <div class="sidebar-header">
-                <h2>个人知识库助手</h2>
+                <div class="sidebar-title">个人知识库助手</div>
                 <div class="user-info" id="userDisplay"></div>
             </div>
             <div class="sidebar-nav">
                 <button class="nav-btn active" onclick="switchPage('chat', this)">
-                    <span>💬</span> 智能对话
+                    智能对话
                 </button>
                 <button class="nav-btn" onclick="switchPage('kb', this)">
-                    <span>📚</span> 知识库管理
+                    知识库管理
                 </button>
             </div>
             <div class="sidebar-footer">
@@ -143,7 +301,10 @@
         
         <div class="main-content">
             <div class="header">
-                <h1 id="pageTitle">智能对话</h1>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()">☰</button>
+                    <h1 id="pageTitle">智能对话</h1>
+                </div>
                 <div class="kb-status" id="kbStatus"></div>
             </div>
             
@@ -170,21 +331,21 @@
                     <p style="color:#666; font-size:12px; margin-bottom:10px;">输入你想让我记住的信息，例如个人信息、业务规则等</p>
                     <textarea id="textContent" placeholder="例如：我们公司的地址是北京市朝阳区xxx路xxx号..."></textarea>
                     <div class="form-row">
-                        <input type="text" id="textSource" placeholder="来源标签（方便以后查找）" value="文本输入">
-                        <button class="btn-primary" onclick="addText()">添加到知识库</button>
+                        <input type="text" id="textSource" placeholder="来源标签（方便以后查找）">
+                        <button class="btn-primary" id="addTextBtn" onclick="addText()">添加到知识库</button>
                     </div>
                 </div>
                 
                 <div class="kb-section">
                     <h3>上传文档</h3>
                     <p style="color:#666; font-size:12px; margin-bottom:10px;">支持 PDF、Word、TXT、Excel 文档</p>
-                    <div class="file-upload-area" onclick="document.getElementById('fileInput').click()">
-                        <p>点击选择文件上传</p>
+                    <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
+                        <p id="fileUploadText">点击选择文件上传</p>
                         <input type="file" id="fileInput" style="display:none" accept=".pdf,.docx,.doc,.txt,.xlsx" onchange="uploadDocument()">
                     </div>
                     <div class="form-row" style="margin-top:15px;">
-                        <input type="text" id="docSource" placeholder="来源标签" value="上传文档">
-                        <button class="btn-primary" onclick="uploadDocumentBtn()">上传并解析</button>
+                        <input type="text" id="docSource" placeholder="来源标签（方便以后查找）">
+                        <button class="btn-primary" id="uploadDocBtn" onclick="uploadDocumentBtn()">上传并解析</button>
                     </div>
                 </div>
                 
@@ -196,8 +357,20 @@
         </div>
     </div>
     
-    <script>
-        let sessionId = null;
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+     <script>
+         if (typeof marked !== 'undefined') {
+             marked.setOptions({ breaks: true, gfm: true });
+         }
+         
+         function renderMarkdown(text) {
+             if (typeof marked !== 'undefined') {
+                 return marked.parse(text);
+             }
+             return text.replace(/\n/g, '<br>');
+         }
+         
+         let sessionId = null;
         let uploadedFile = null;
         
         function apiCall(url, options = {}) {
@@ -229,14 +402,15 @@
             }
         }
         
-        function setLoading(btnId, loading) {
+        function setLoading(btnId, loading, loadingText = '处理中...') {
             const btn = document.getElementById(btnId);
             if (loading) {
                 btn.disabled = true;
-                btn.textContent = '处理中...';
+                btn.textContent = loadingText;
                 btn.style.opacity = '0.6';
             } else {
                 btn.disabled = false;
+                btn.textContent = btnId === 'loginBtn' ? '登录' : (btnId === 'regBtn' ? '注册' : btn.textContent);
                 btn.style.opacity = '1';
             }
         }
@@ -249,7 +423,7 @@
             if (!username || !password) return showToast('请输入用户名和密码', true);
             if (password !== confirm) return showToast('两次密码不一致', true);
             
-            setLoading('regBtn', true);
+            setLoading('regBtn', true, '注册中...');
             
             try {
                 const res = await fetch('/api/register', {
@@ -272,7 +446,7 @@
             
             if (!username || !password) return showToast('请输入用户名和密码', true);
             
-            setLoading('loginBtn', true);
+            setLoading('loginBtn', true, '登录中...');
             
             try {
                 const res = await fetch('/api/login', {
@@ -304,6 +478,13 @@
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('appPage').style.display = 'none';
             document.getElementById('chatContainer').innerHTML = '<div class="welcome-message"><h2>你好！我是你的个人知识库助手</h2><p>我可以从你的个人知识库中查找信息，<br>也可以用自己的知识回答你的问题。</p></div>';
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.getElementById('sidebarToggleBtn');
+            sidebar.classList.toggle('collapsed');
+            toggle.textContent = sidebar.classList.contains('collapsed') ? '☰' : '✕';
         }
         
         function switchPage(page, btn) {
@@ -342,18 +523,30 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = 'message ' + role;
             
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.textContent = content;
-            
-            if (source) {
-                const sourceDiv = document.createElement('div');
-                sourceDiv.className = 'message-source';
-                sourceDiv.textContent = source;
-                contentDiv.appendChild(sourceDiv);
+            if (role === 'user') {
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                msgDiv.appendChild(contentDiv);
+            } else {
+                const card = document.createElement('div');
+                card.className = 'message-card';
+                
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body';
+                cardBody.innerHTML = renderMarkdown(content);
+                card.appendChild(cardBody);
+                
+                if (source) {
+                    const cardFooter = document.createElement('div');
+                    cardFooter.className = 'card-footer';
+                    cardFooter.textContent = source;
+                    card.appendChild(cardFooter);
+                }
+                
+                msgDiv.appendChild(card);
             }
             
-            msgDiv.appendChild(contentDiv);
             container.appendChild(msgDiv);
             container.scrollTop = container.scrollHeight;
         }
@@ -384,6 +577,7 @@
             
             let answerContent = '';
             let fromKb = false;
+            let fromSearch = false;
             const container = document.getElementById('chatContainer');
             
             try {
@@ -408,9 +602,19 @@
                 
                 const assistantDiv = document.createElement('div');
                 assistantDiv.className = 'message assistant';
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'message-content';
-                assistantDiv.appendChild(contentDiv);
+                
+                const card = document.createElement('div');
+                card.className = 'message-card';
+                
+                const cardBody = document.createElement('div');
+                cardBody.className = 'card-body';
+                card.appendChild(cardBody);
+                
+                const cardFooter = document.createElement('div');
+                cardFooter.className = 'card-footer';
+                card.appendChild(cardFooter);
+                
+                assistantDiv.appendChild(card);
                 container.appendChild(assistantDiv);
                 
                 while (true) {
@@ -429,14 +633,20 @@
                                 const data = JSON.parse(line.substring(6));
                                 if (data.content) {
                                     answerContent += data.content;
-                                    contentDiv.textContent = answerContent;
+                                    cardBody.innerHTML = renderMarkdown(answerContent);
                                     container.scrollTop = container.scrollHeight;
-                                } else if (typeof data.from_knowledge_base === 'boolean') {
-                                    fromKb = data.from_knowledge_base;
-                                    const sourceDiv = document.createElement('div');
-                                    sourceDiv.className = 'message-source';
-                                    sourceDiv.textContent = fromKb ? '回答来源：已结合你的个人知识库' : '回答来源：使用 AI 通用知识';
-                                    contentDiv.appendChild(sourceDiv);
+                                } else if (typeof data.from_knowledge_base === 'boolean' || typeof data.from_search === 'boolean') {
+                                    fromKb = data.from_knowledge_base || false;
+                                    fromSearch = data.from_search || false;
+                                    if (fromSearch && fromKb) {
+                                        cardFooter.textContent = '回答来源：已结合你的个人知识库和网络搜索结果';
+                                    } else if (fromSearch) {
+                                        cardFooter.textContent = '回答来源：已结合网络搜索结果';
+                                    } else if (fromKb) {
+                                        cardFooter.textContent = '回答来源：已结合你的个人知识库';
+                                    } else {
+                                        cardFooter.textContent = '回答来源：使用 AI 通用知识';
+                                    }
                                 }
                             } catch(e) {}
                         }
@@ -460,10 +670,15 @@
         }
         
         async function addText() {
+            const btn = document.getElementById('addTextBtn');
             const content = document.getElementById('textContent').value;
             const sourceName = document.getElementById('textSource').value;
             
             if (!content) return showToast('请输入内容', true);
+            
+            btn.disabled = true;
+            btn.textContent = '正在上传...';
+            btn.style.opacity = '0.6';
             
             try {
                 const data = await apiCall('/api/add_text', {
@@ -482,6 +697,10 @@
                 }
             } catch(e) {
                 showToast('请求失败，请重试', true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '添加到知识库';
+                btn.style.opacity = '1';
             }
         }
         
@@ -489,12 +708,18 @@
             const file = document.getElementById('fileInput').files[0];
             if (file) {
                 uploadedFile = file;
-                showToast('✅ 已选择: ' + file.name);
+                document.getElementById('fileUploadArea').classList.add('has-file');
+                document.getElementById('fileUploadText').innerHTML = '📄 ' + file.name + '<br><span style="font-size:12px;color:#999;">点击更换文件</span>';
             }
         }
         
         async function uploadDocumentBtn() {
             if (!uploadedFile) return showToast('请先选择文件', true);
+            
+            const btn = document.getElementById('uploadDocBtn');
+            btn.disabled = true;
+            btn.textContent = '正在解析...';
+            btn.style.opacity = '0.6';
             
             const sourceName = document.getElementById('docSource').value || uploadedFile.name;
             const formData = new FormData();
@@ -525,6 +750,8 @@
                     uploadedFile = null;
                     document.getElementById('fileInput').value = '';
                     document.getElementById('docSource').value = '';
+                    document.getElementById('fileUploadArea').classList.remove('has-file');
+                    document.getElementById('fileUploadText').textContent = '点击选择文件上传';
                     loadKbStatus();
                     loadDocList();
                 } else {
@@ -533,6 +760,10 @@
             } catch(e) {
                 showToast('上传失败：' + e.message, true);
                 console.error('Upload error:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '上传并解析';
+                btn.style.opacity = '1';
             }
         }
         
