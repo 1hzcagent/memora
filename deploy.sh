@@ -14,6 +14,19 @@ cd "$SCRIPT_DIR"
 echo "📁 项目目录：$SCRIPT_DIR"
 echo ""
 
+# 检测 Docker Compose 命令（兼容 v1/v2）
+if command -v docker &>/dev/null && docker compose version &>/dev/null 2>&1; then
+    DOCKER_COMPOSE="docker compose"
+elif command -v docker-compose &>/dev/null; then
+    DOCKER_COMPOSE="docker-compose"
+else
+    echo "❌ 错误：未找到 docker compose 或 docker-compose 命令！"
+    echo "请安装 Docker 或 docker-compose"
+    exit 1
+fi
+echo "🐳 使用 Docker Compose 命令：$DOCKER_COMPOSE"
+echo ""
+
 # 1. 检查 Git 仓库
 echo "🔍 检查 Git 仓库状态..."
 if [ ! -d ".git" ]; then
@@ -59,8 +72,8 @@ echo ""
 
 # 3. 停止旧容器
 echo "⏹️  停止旧容器..."
-if docker-compose ps | grep -q "Up"; then
-    docker-compose down
+if $DOCKER_COMPOSE ps | grep -q "Up"; then
+    $DOCKER_COMPOSE down
     echo "✅ 旧容器已停止"
 else
     echo "ℹ️  没有运行中的容器，跳过停止步骤"
@@ -69,13 +82,13 @@ echo ""
 
 # 4. 重新构建镜像
 echo "🔨 重新构建 Docker 镜像..."
-docker-compose build --no-cache
+$DOCKER_COMPOSE build --no-cache
 echo "✅ 镜像构建完成"
 echo ""
 
 # 5. 启动新容器
 echo "▶️  启动新容器..."
-docker-compose up -d
+$DOCKER_COMPOSE up -d
 echo "✅ 容器已启动"
 echo ""
 
@@ -85,7 +98,7 @@ sleep 5
 
 # 7. 检查容器状态
 echo "🔍 检查容器状态..."
-docker-compose ps
+$DOCKER_COMPOSE ps
 echo ""
 
 # 8. 清理悬空镜像
@@ -99,7 +112,7 @@ echo "=========================================="
 echo "✅ 部署完成！"
 echo "=========================================="
 echo ""
-echo "📋 查看实时日志：docker-compose logs -f"
+echo "📋 查看实时日志：$DOCKER_COMPOSE logs -f"
 echo "🌐 访问应用：http://localhost:8000"
 echo "📚 API 文档：http://localhost:8000/docs"
 echo ""
@@ -108,5 +121,5 @@ echo ""
 read -p "是否查看实时日志？(Y/n): " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]] || [ -z "$REPLY" ]; then
-    docker-compose logs -f
+    $DOCKER_COMPOSE logs -f
 fi
