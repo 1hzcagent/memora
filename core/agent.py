@@ -235,6 +235,12 @@ class PersonalAgent:
 
             return answer, has_relevant_kb or has_search
         except Exception as e:
+            error_str = str(e)
+            if "data_inspection_failed" in error_str:
+                answer = "抱歉，我无法回答这个问题。作为一个人工智能助手，我不能生成或传播不当内容。如果您有其他问题，我很乐意为您提供帮助。"
+                self.conversation_history.append({"role": "assistant", "content": answer})
+                self.save_history()
+                return answer, False
             error_msg = f"抱歉，AI服务暂时不可用，请稍后重试。错误信息：{str(e)}"
             return error_msg, False
 
@@ -277,6 +283,12 @@ class PersonalAgent:
             yield has_search
 
         except Exception as e:
+            error_str = str(e)
+            if "data_inspection_failed" in error_str:
+                yield "抱歉，我无法回答这个问题。作为一个人工智能助手，我不能生成或传播不当内容。如果您有其他问题，我很乐意为您提供帮助。"
+                yield False
+                yield False
+                return
             error_msg = f"抱歉，AI服务暂时不可用，请稍后重试。错误信息：{str(e)}"
             yield error_msg
             yield False
