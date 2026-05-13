@@ -440,6 +440,13 @@
                 });
                 const data = await res.json();
                 showToast(data.message, !data.success);
+                if (data.success) {
+                    document.getElementById('loginUser').value = username;
+                    document.getElementById('regUser').value = '';
+                    document.getElementById('regPass').value = '';
+                    document.getElementById('regConfirm').value = '';
+                    switchTab('login');
+                }
             } catch(e) {
                 showToast('请求失败，请重试', true);
             } finally {
