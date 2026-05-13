@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Header
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 load_dotenv()
@@ -19,6 +20,14 @@ from utils.document_parser import parse_document, split_documents
 from config import CHUNK_SIZE, CHUNK_OVERLAP, DASHSCOPE_API_KEY
 
 app = FastAPI(title="个人知识库智能助手")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.state.sessions = {}
 app.state.auth = AuthManager()
