@@ -23,13 +23,28 @@ class KnowledgeBaseManager:
             check_embedding_ctx_length=False
         )
         
-        self.vector_store = Chroma(
-            persist_directory=str(kb_path),
-            embedding_function=self.embeddings
-        )
+        self.vector_store = self._init_chroma(kb_path)
         
         self.metadata_file = kb_path.parent / "kb_metadata.json"
         self._load_metadata()
+    
+    def _init_chroma(self, kb_path):
+        try:
+            return Chroma(
+                persist_directory=str(kb_path),
+                embedding_function=self.embeddings
+            )
+        except Exception as e:
+            print(f"ChromaDB 初始化失败: {e}")
+            print("尝试清理损坏的索引文件并重建...")
+            kb_path.mkdir(parents=True, exist_ok=True)
+            for f in kb_path.iterdir():
+                if f.name.startswith("hnsw") or f.name.endswith(".sqlite3"):
+                    f.unlink()
+            return Chroma(
+                persist_directory=str(kb_path),
+                embedding_function=self.embeddings
+            )
     
     def _load_metadata(self):
         if self.metadata_file.exists():
@@ -56,17 +71,33 @@ class KnowledgeBaseManager:
         all_ids = []
         total_batches = (len(documents) + batch_size - 1) // batch_size
         
-        try:
+        def _do_add():
+            ids = []
             for i in range(0, len(documents), batch_size):
                 batch = documents[i:i + batch_size]
                 batch_num = i // batch_size + 1
                 print(f"添加批次 {batch_num}/{total_batches}: {len(batch)} 个文档")
-                
                 batch_ids = self.vector_store.add_documents(batch)
                 if batch_ids:
-                    all_ids.extend(batch_ids)
+                    ids.extend(batch_ids)
                     print(f"  成功获取 {len(batch_ids)} 个ID")
-            
+            return ids
+        
+        try:
+            all_ids = _do_add()
+        except Exception as add_err:
+            print(f"ChromaDB 写入失败: {add_err}")
+            print("尝试重建向量数据库...")
+            try:
+                self._recover_chroma()
+                self.vector_store = self._init_chroma(self.kb_path)
+                all_ids = _do_add()
+                print("重建后写入成功")
+            except Exception as recover_err:
+                print(f"重建失败: {recover_err}")
+                raise recover_err
+        
+        try:
             if not all_ids:
                 raise Exception("向量化失败，没有生成任何ID")
             
@@ -84,7 +115,6 @@ class KnowledgeBaseManager:
             return len(documents)
         except Exception as e:
             print(f"添加文档失败: {e}")
-            print(f"已保存 {len(all_ids)} 个ID到元数据")
             if all_ids:
                 self.metadata["documents"].append({
                     "source": source_name,
@@ -93,6 +123,17 @@ class KnowledgeBaseManager:
                 })
                 self._save_metadata()
             raise
+    
+    def _recover_chroma(self):
+        kb_path = self.kb_path
+        kb_path.mkdir(parents=True, exist_ok=True)
+        for f in kb_path.iterdir():
+            if f.name.startswith("hnsw") or f.name.endswith(".sqlite3") or f.name.endswith(".pickle"):
+                if f.is_file():
+                    f.unlink()
+                elif f.is_dir():
+                    import shutil
+                    shutil.rmtree(f, ignore_errors=True)
     
     def _rerank(self, query, docs):
         """使用 DashScope Rerank API 对检索结果重排序"""

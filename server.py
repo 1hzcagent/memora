@@ -125,12 +125,18 @@ async def upload_document(file: UploadFile = File(...), source_name: str = Form(
             file_path = Path(tmpdir) / file.filename
             with open(file_path, "wb") as f:
                 f.write(content)
-            documents = parse_document(file_path)
-            chunks = split_documents(documents, CHUNK_SIZE, CHUNK_OVERLAP)
-            count = kb_manager.add_documents(chunks, source_name)
+            try:
+                documents = parse_document(file_path)
+                chunks = split_documents(documents, CHUNK_SIZE, CHUNK_OVERLAP)
+            except Exception as e:
+                return JSONResponse({"success": False, "message": f"文件解析失败: {str(e)}"})
+            try:
+                count = kb_manager.add_documents(chunks, source_name)
+            except Exception as e:
+                return JSONResponse({"success": False, "message": f"知识库存储失败: {str(e)}"})
             return JSONResponse({"success": True, "message": f"成功解析并添加 {count} 条知识到永久记忆"})
     except Exception as e:
-        return JSONResponse({"success": False, "message": f"文档解析失败: {str(e)}"})
+        return JSONResponse({"success": False, "message": f"上传失败: {str(e)}"})
 
 @app.post("/api/delete_document")
 async def delete_document(source_name: str, x_session_id: str = Header(None)):
