@@ -319,7 +319,7 @@
             <div class="chat-container" id="chatContainer">
                 <div class="welcome-message">
                     <h2>你好！我是你的个人知识库助手</h2>
-                    <p>我可以从你的个人知识库中查找信息，<br>也可以用自己的知识回答你的问题。<br><br>在"知识库管理"中添加你的专属知识吧！</p>
+                    <p>在"知识库管理"中添加你的专属知识吧！</p>
                 </div>
             </div>
             
@@ -491,7 +491,7 @@
             sessionId = null;
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('appPage').style.display = 'none';
-            document.getElementById('chatContainer').innerHTML = '<div class="welcome-message"><h2>你好！我是你的个人知识库助手</h2><p>我可以从你的个人知识库中查找信息，<br>也可以用自己的知识回答你的问题。</p></div>';
+            document.getElementById('chatContainer').innerHTML = '<div class="welcome-message"><h2>你好！我是你的个人知识库助手</h2><p>在"知识库管理"中添加你的专属知识吧！</p></div>';
         }
 
         function toggleSidebar() {
@@ -730,7 +730,7 @@
             
             const btn = document.getElementById('uploadDocBtn');
             btn.disabled = true;
-            btn.textContent = '正在解析...';
+            btn.textContent = '正在上传...';
             btn.style.opacity = '0.6';
             
             const sourceName = document.getElementById('docSource').value || uploadedFile.name;
@@ -757,15 +757,12 @@
                 
                 const data = await res.json();
                 
-                if (data.success) {
+                if (data.success && data.task_id) {
+                    btn.textContent = '正在解析...';
+                    await pollTaskStatus(data.task_id, btn);
+                } else if (data.success) {
                     showToast('✅ ' + data.message);
-                    uploadedFile = null;
-                    document.getElementById('fileInput').value = '';
-                    document.getElementById('docSource').value = '';
-                    document.getElementById('fileUploadArea').classList.remove('has-file');
-                    document.getElementById('fileUploadText').textContent = '点击选择文件上传';
-                    loadKbStatus();
-                    loadDocList();
+                    resetUploadForm();
                 } else {
                     showToast('❌ ' + data.message, true);
                 }
@@ -777,6 +774,44 @@
                 btn.textContent = '上传并解析';
                 btn.style.opacity = '1';
             }
+        }
+        
+        async function pollTaskStatus(taskId, btn, attempt = 0) {
+            const maxAttempts = 60;
+            if (attempt >= maxAttempts) {
+                showToast('❌ 处理超时，请稍后查看知识库或重试', true);
+                return;
+            }
+            
+            try {
+                const headers = {};
+                if (sessionId) headers['x-session-id'] = sessionId;
+                const res = await fetch('/api/task_status/' + taskId, { headers });
+                const data = await res.json();
+                
+                if (data.status === 'processing') {
+                    const dots = '.'.repeat((attempt % 3) + 1);
+                    btn.textContent = '正在解析' + dots;
+                    setTimeout(() => pollTaskStatus(taskId, btn, attempt + 1), 2000);
+                } else if (data.success) {
+                    showToast('✅ ' + data.message);
+                    resetUploadForm();
+                } else {
+                    showToast('❌ ' + (data.message || '处理失败'), true);
+                }
+            } catch(e) {
+                setTimeout(() => pollTaskStatus(taskId, btn, attempt + 1), 3000);
+            }
+        }
+        
+        function resetUploadForm() {
+            uploadedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('docSource').value = '';
+            document.getElementById('fileUploadArea').classList.remove('has-file');
+            document.getElementById('fileUploadText').textContent = '点击选择文件上传';
+            loadKbStatus();
+            loadDocList();
         }
         
         async function loadDocList() {

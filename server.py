@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.state.sessions = {}
 app.state.auth = AuthManager()
+app.state.tasks = {}
 
 class LoginRequest(BaseModel):
     username: str
@@ -119,24 +120,48 @@ async def add_text(req: AddTextRequest, x_session_id: str = Header(None)):
 async def upload_document(file: UploadFile = File(...), source_name: str = Form("uploaded_doc"), x_session_id: str = Header(None)):
     sess = get_session(x_session_id)
     kb_manager = sess["kb_manager"]
+    username = sess["username"]
     try:
         content = await file.read()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = Path(tmpdir) / file.filename
-            with open(file_path, "wb") as f:
-                f.write(content)
-            try:
-                documents = parse_document(file_path)
-                chunks = split_documents(documents, CHUNK_SIZE, CHUNK_OVERLAP)
-            except Exception as e:
-                return JSONResponse({"success": False, "message": f"文件解析失败: {str(e)}"})
-            try:
-                count = kb_manager.add_documents(chunks, source_name)
-            except Exception as e:
-                return JSONResponse({"success": False, "message": f"知识库存储失败: {str(e)}"})
-            return JSONResponse({"success": True, "message": f"成功解析并添加 {count} 条知识到永久记忆"})
+        upload_dir = Path("uploads") / username
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        saved_path = upload_dir / file.filename
+        with open(saved_path, "wb") as f:
+            f.write(content)
+        
+        task_id = str(uuid.uuid4())
+        app.state.tasks[task_id] = {"status": "processing", "filename": file.filename}
+        
+        asyncio.create_task(_process_upload(task_id, saved_path, source_name, kb_manager, username))
+        
+        return JSONResponse({"success": True, "message": "文件已接收，正在后台处理中...", "task_id": task_id})
     except Exception as e:
         return JSONResponse({"success": False, "message": f"上传失败: {str(e)}"})
+
+async def _process_upload(task_id, file_path, source_name, kb_manager, username):
+    try:
+        documents = parse_document(file_path)
+        chunks = split_documents(documents, CHUNK_SIZE, CHUNK_OVERLAP)
+        count = await asyncio.to_thread(kb_manager.add_documents, chunks, source_name)
+        app.state.tasks[task_id] = {"status": "completed", "message": f"成功解析并添加 {count} 条知识到永久记忆", "count": count}
+    except Exception as e:
+        app.state.tasks[task_id] = {"status": "failed", "message": str(e)}
+    finally:
+        try:
+            file_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+@app.get("/api/task_status/{task_id}")
+async def task_status(task_id: str):
+    if task_id not in app.state.tasks:
+        return JSONResponse({"success": False, "message": "任务不存在"})
+    task = app.state.tasks[task_id]
+    if task["status"] in ("completed", "failed"):
+        result = dict(task)
+        del app.state.tasks[task_id]
+        return JSONResponse({"success": task["status"] == "completed", "message": task.get("message", ""), "count": task.get("count", 0)})
+    return JSONResponse({"success": True, "message": "处理中...", "status": "processing"})
 
 @app.post("/api/delete_document")
 async def delete_document(source_name: str, x_session_id: str = Header(None)):
