@@ -224,6 +224,26 @@
         .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
         @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-10px); } }
+
+        .thinking-block { margin: 0; }
+        .thinking-toggle { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #f0f4ff; cursor: pointer; font-size: 13px; color: #4a6fa5; user-select: none; border-bottom: 1px solid #e8ecf1; }
+        .thinking-toggle:hover { background: #e4edff; }
+        .thinking-toggle .thinking-icon { font-size: 16px; }
+        .thinking-toggle .thinking-label { font-weight: 500; }
+        .thinking-toggle .thinking-current { color: #888; margin-left: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .thinking-toggle.done { background: #f5f5f5; color: #999; }
+        .thinking-toggle.done .thinking-icon { opacity: 0.5; }
+        .thinking-detail { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: #fafbfc; }
+        .thinking-detail.expanded { max-height: 200px; border-bottom: 1px solid #e8ecf1; }
+        .thinking-step { padding: 6px 16px; font-size: 12px; color: #666; display: flex; align-items: center; gap: 8px; }
+        .thinking-step.done { color: #4caf50; }
+        .thinking-step.active { color: #4a6fa5; font-weight: 500; }
+        .thinking-step .step-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+        .thinking-step.done .step-dot { background: #4caf50; }
+        .thinking-step.active .step-dot { background: #4a6fa5; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .thinking-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ddd; border-top-color: #4a6fa5; border-radius: 50%; animation: spin 0.8s linear infinite; margin-left: auto; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -379,6 +399,8 @@
          
          let sessionId = null;
         let uploadedFile = null;
+        let currentAbortController = null;
+        let currentAssistantDiv = null;
         
         function apiCall(url, options = {}) {
             const headers = options.headers || {};
@@ -582,16 +604,41 @@
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             if (!message) return;
-            
+
             input.value = '';
+            const wasGenerating = currentAbortController !== null;
+
+            if (wasGenerating) {
+                currentAbortController.abort();
+                if (currentAssistantDiv) {
+                    const cardBody = currentAssistantDiv.querySelector('.card-body');
+                    if (cardBody) {
+                        const existing = cardBody.textContent.trim();
+                        if (existing) {
+                            cardBody.insertAdjacentHTML('beforeend', ' <em style="color:#999;font-size:13px">[用户已中断]</em>');
+                        } else {
+                            cardBody.innerHTML = '<em style="color:#999">[用户已中断]</em>';
+                        }
+                    }
+                    currentAssistantDiv = null;
+                }
+                currentAbortController = null;
+            }
+
             addMessage('user', message);
             showTyping();
-            
+
             let answerContent = '';
             let fromKb = false;
             let fromSearch = false;
+            let thinkingSteps = [];
+            let currentThinking = '';
+            let thinkingDone = false;
             const container = document.getElementById('chatContainer');
-            
+
+            const abortController = new AbortController();
+            currentAbortController = abortController;
+
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -599,54 +646,114 @@
                         'Content-Type': 'application/json',
                         'x-session-id': sessionId ? String(sessionId) : ''
                     },
-                    body: JSON.stringify({message})
+                    body: JSON.stringify({message}),
+                    signal: abortController.signal
                 });
-                
+
                 if (!response.ok) {
-                    throw new Error('请求失败');
+                    if (response.status === 401) {
+                        throw new Error('登录已过期，请重新登录');
+                    }
+                    const errorBody = await response.text();
+                    throw new Error('请求失败 (HTTP ' + response.status + ')');
                 }
-                
+
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
-                
+
                 removeTyping();
-                
+
                 const assistantDiv = document.createElement('div');
                 assistantDiv.className = 'message assistant';
-                
+
                 const card = document.createElement('div');
                 card.className = 'message-card';
-                
+
+                const thinkingBlock = document.createElement('div');
+                thinkingBlock.className = 'thinking-block';
+                thinkingBlock.innerHTML = `
+                    <div class="thinking-toggle" onclick="this.nextElementSibling.classList.toggle('expanded')">
+                        <span class="thinking-icon">💭</span>
+                        <span class="thinking-label">思考过程</span>
+                        <span class="thinking-current"></span>
+                        <span class="thinking-spinner"></span>
+                    </div>
+                    <div class="thinking-detail expanded"></div>
+                `;
+                card.appendChild(thinkingBlock);
+
                 const cardBody = document.createElement('div');
                 cardBody.className = 'card-body';
                 card.appendChild(cardBody);
-                
+
                 const cardFooter = document.createElement('div');
                 cardFooter.className = 'card-footer';
                 card.appendChild(cardFooter);
-                
+
                 assistantDiv.appendChild(card);
                 container.appendChild(assistantDiv);
-                
+
+                currentAssistantDiv = assistantDiv;
+
+                const thinkingCurrent = thinkingBlock.querySelector('.thinking-current');
+                const thinkingDetail = thinkingBlock.querySelector('.thinking-detail');
+                const thinkingSpinner = thinkingBlock.querySelector('.thinking-spinner');
+
+                function updateThinking(text) {
+                    currentThinking = text;
+                    thinkingSteps.push(text);
+                    thinkingCurrent.textContent = '— ' + text;
+
+                    thinkingDetail.innerHTML = thinkingSteps.map((s, i) => {
+                        const isLast = i === thinkingSteps.length - 1 && !thinkingDone;
+                        return `<div class="thinking-step ${isLast ? 'active' : 'done'}">
+                            <span class="step-dot"></span>${s}
+                            ${isLast ? '' : ' ✓'}
+                        </div>`;
+                    }).join('');
+                }
+
+                function finishThinking() {
+                    if (thinkingDone) return;
+                    thinkingDone = true;
+                    const toggle = thinkingBlock.querySelector('.thinking-toggle');
+                    toggle.classList.add('done');
+                    thinkingSpinner.remove();
+
+                    thinkingDetail.innerHTML = thinkingSteps.map((s, i) => {
+                        return `<div class="thinking-step done">
+                            <span class="step-dot"></span>${s} ✓
+                        </div>`;
+                    }).join('');
+
+                    setTimeout(() => {
+                        thinkingDetail.classList.remove('expanded');
+                    }, 1500);
+                }
+
                 while (true) {
                     const {done, value} = await reader.read();
                     if (done) break;
-                    
+
                     const chunk = decoder.decode(value, {stream: true});
                     buffer += chunk;
-                    
+
                     const lines = buffer.split('\n\n');
                     buffer = lines.pop() || '';
-                    
+
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(line.substring(6));
-                                if (data.content) {
+                                if (data.thinking) {
+                                    updateThinking(data.thinking);
+                                } else if (data.content) {
+                                    if (!thinkingDone) finishThinking();
                                     answerContent += data.content;
                                     cardBody.innerHTML = renderMarkdown(answerContent);
-                                    container.scrollTop = container.scrollHeight;
+                                    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+                                    if (atBottom) container.scrollTop = container.scrollHeight;
                                 } else if (typeof data.from_knowledge_base === 'boolean' || typeof data.from_search === 'boolean') {
                                     fromKb = data.from_knowledge_base || false;
                                     fromSearch = data.from_search || false;
@@ -664,11 +771,21 @@
                         }
                     }
                 }
-                
+
             } catch(e) {
+                if (e.name === 'AbortError') {
+                    return;
+                }
                 removeTyping();
                 addMessage('assistant', '请求失败：' + e.message, null);
                 console.error('Chat error:', e);
+            } finally {
+                if (currentAbortController === abortController) {
+                    currentAbortController = null;
+                }
+                if (currentAssistantDiv === assistantDiv) {
+                    currentAssistantDiv = null;
+                }
             }
         }
         

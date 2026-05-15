@@ -93,7 +93,9 @@ async def chat(req: ChatRequest, x_session_id: str = Header(None)):
     async def generate():
         flags = {}
         async for chunk in agent.query_stream(req.message):
-            if isinstance(chunk, bool):
+            if isinstance(chunk, dict):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            elif isinstance(chunk, bool):
                 if 'kb' not in flags:
                     flags['kb'] = chunk
                 else:

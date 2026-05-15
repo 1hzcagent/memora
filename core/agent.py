@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import asyncio
 import requests
 from pathlib import Path
 from typing import TypedDict
@@ -88,15 +89,19 @@ class PersonalAgent:
         return workflow.compile()
 
     def _analyze_node(self, state: AgentState) -> dict:
+        from datetime import datetime
         question = state["question"]
         messages = state.get("messages", [])
+        today = datetime.now().strftime("%Y年%m月%d日")
 
         analyze_prompt = f"""你是一个智能助手的决策模块。你需要分析用户的问题，判断是否需要检索个人知识库和联网搜索。
 
+今天是：{today}
+
 判断规则：
 - need_kb: 问题是否涉及用户的个人信息、之前上传的文档、个人知识？如果只是闲聊、问候，不需要检索知识库。
-- need_search: 问题是否需要实时信息、最新数据、无法从知识库获取的外部信息？常见需要搜索的情况：询问当前时间、天气、新闻、最新事件、实时数据等。
-- search_query: 如果需要搜索，生成一个优化的搜索查询词（简洁精确）。如果不需要搜索，留空字符串。
+- need_search: 问题是否涉及时事、新闻、最新动态、实时数据、当前日期相关？任何需要最新信息的问题都应该标记为需要搜索。
+- search_query: 如果需要搜索，生成一个优化的搜索查询词。对于时事关问题，搜索词中务必使用当前年份{today[:4]}，优先搜索最新信息。
 
 请严格以JSON格式返回，不要包含其他内容：
 {{"need_kb": true/false, "need_search": true/false, "search_query": "..."}}
@@ -226,6 +231,7 @@ class PersonalAgent:
         if has_relevant_kb and has_search:
             context = "\n".join([doc.page_content for doc, score in kb_results])
             system_prompt = f"""你是一个专业、友好的智能助手。你结合用户个人知识库和网络搜索结果来回答问题。
+你有对话记忆，可以看到之前的交流内容，请结合上下文理解用户的问题。
 
 个人知识库相关内容：
 {context}
@@ -247,6 +253,7 @@ class PersonalAgent:
         elif has_relevant_kb and not has_search:
             context = "\n".join([doc.page_content for doc, score in kb_results])
             system_prompt = f"""你是一个专业、友好的智能助手。以下是用户个人知识库中与问题相关的内容。
+你有对话记忆，可以看到之前的交流内容，请结合上下文理解用户的问题。
 
 个人知识库相关内容：
 {context}
@@ -264,6 +271,7 @@ class PersonalAgent:
 
         elif not has_relevant_kb and has_search:
             system_prompt = f"""你是一个专业、友好的智能助手。以下是通过网络搜索获取的实时信息。
+你有对话记忆，可以看到之前的交流内容，请结合上下文理解用户的问题。
 
 网络搜索结果：
 {search_results}
@@ -279,12 +287,12 @@ class PersonalAgent:
 - 合理使用标题、列表、加粗等排版元素"""
 
         else:
-            system_prompt = """你是一个专业、友好的智能助手。
+            system_prompt = """你是一个专业、友好的智能助手。你有对话记忆，可以看到之前的交流内容，请结合上下文理解用户的问题。
 
 回答规则：
-1. 你的个人知识库中没有相关信息，也不需要联网搜索
-2. 对于通用知识（如科学、历史、技术、常识等），请用你自己的知识回答
-3. 如果问题涉及用户的个人信息（如"我是谁"、"我的名字"等），你并不知道答案，请诚实地回答不知道
+1. 对于通用知识（如科学、历史、技术、常识等），请用你自己的知识回答
+2. 如果用户提到之前聊过的内容，你可以引用对话历史来回答
+3. 对于从未提及过的用户个人信息（如"我是谁"、"我的名字"等），请诚实地回答不知道
 4. 不要编造信息
 
 格式要求：
@@ -294,10 +302,78 @@ class PersonalAgent:
 
         messages = [{"role": "system", "content": system_prompt}]
 
-        for msg in self.conversation_history[-10:]:
+        filtered_history = self._filter_history(question)
+
+        for msg in filtered_history:
             messages.append(msg)
 
         return messages
+
+    def _filter_history(self, question: str) -> list:
+        history = self.conversation_history
+        if not history:
+            return []
+
+        exchanges = []
+        i = 0
+        while i < len(history):
+            if history[i]["role"] == "user":
+                pair = [history[i]]
+                if i + 1 < len(history) and history[i + 1]["role"] == "assistant":
+                    pair.append(history[i + 1])
+                    i += 2
+                else:
+                    i += 1
+                exchanges.append(pair)
+            else:
+                i += 1
+
+        n = len(exchanges)
+        if n <= 3:
+            return [m for ex in exchanges for m in ex]
+
+        recent = exchanges[-2:]
+        older = exchanges[:-2]
+
+        if not older:
+            return [m for ex in recent for m in ex]
+
+        older_user_msgs = [ex[0]["content"][:120] for ex in older]
+
+        filter_prompt = f"""判断以下历史对话与当前问题的相关性。
+
+当前问题：{question}
+
+历史对话：
+{chr(10).join(f"{j+1}. {msg}" for j, msg in enumerate(older_user_msgs))}
+
+仅返回JSON：
+{{"relevant": [1, 3]}}
+都不相关返回：{{"relevant": []}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[{"role": "user", "content": filter_prompt}],
+                temperature=0.1,
+                max_tokens=80
+            )
+            content = response.choices[0].message.content
+            decision = self._parse_json(content)
+            relevant_set = set(decision.get("relevant", []))
+            print(f"[历史过滤] {len(older)} 轮历史中，{len(relevant_set)} 轮相关")
+        except Exception as e:
+            print(f"[历史过滤] 评分失败，保留全部: {e}")
+            relevant_set = set(range(1, len(older) + 1))
+
+        result = []
+        for j, ex in enumerate(older):
+            if (j + 1) in relevant_set:
+                result.extend(ex)
+        for ex in recent:
+            result.extend(ex)
+
+        return result
 
     def _run_workflow(self, question: str):
         history_messages = list(self.conversation_history[-6:])
@@ -365,10 +441,40 @@ class PersonalAgent:
     async def query_stream(self, question: str):
         self.conversation_history.append({"role": "user", "content": question})
 
-        state = await self._run_workflow_async(question)
+        yield {"thinking": "正在分析问题..."}
 
-        kb_results = state.get("kb_results", [])
-        search_results = state.get("search_results", "")
+        history_messages = list(self.conversation_history[-6:])
+        initial_state: AgentState = {
+            "question": question,
+            "messages": history_messages,
+            "need_kb": False,
+            "need_search": False,
+            "search_query": "",
+            "kb_results": [],
+            "search_results": "",
+        }
+
+        analyze_output = self._analyze_node(initial_state)
+        need_kb = analyze_output["need_kb"]
+        need_search = analyze_output["need_search"]
+        search_query = analyze_output.get("search_query", question)
+
+        kb_results = []
+        search_results = ""
+
+        if need_kb:
+            yield {"thinking": "正在检索知识库..."}
+            retrieve_state = {**initial_state, **analyze_output}
+            retrieve_output = await asyncio.to_thread(self._retrieve_node, retrieve_state)
+            kb_results = retrieve_output["kb_results"]
+
+        if need_search:
+            yield {"thinking": f"正在搜索网络：{search_query}"}
+            search_state = {**initial_state, **analyze_output, "kb_results": kb_results}
+            search_output = await asyncio.to_thread(self._search_node, search_state)
+            search_results = search_output.get("search_results", "")
+
+        yield {"thinking": "正在生成回答..."}
 
         has_relevant_kb = len(kb_results) > 0
         has_search = bool(search_results and "未找到" not in search_results and "搜索失败" not in search_results)
